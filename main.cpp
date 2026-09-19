@@ -1,16 +1,37 @@
 #include <iostream>
+#include <fstream>
 #include <string>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <ctime>
+
 using namespace std;
+
+// ============================================================
+// QUESTION CLASS
+// ============================================================
 
 class Question {
 private:
     string question;
-    string option1, option2, option3, option4;
+    string option1;
+    string option2;
+    string option3;
+    string option4;
     int correctOption;
 
 public:
-    void setData(string q, string o1, string o2, string o3,
-                 string o4, int correct) {
+
+    // Constructor
+    Question() {
+        correctOption = 1;
+    }
+
+    // Set question data
+    void setData(string q, string o1, string o2,
+                 string o3, string o4, int correct) {
+
         question = q;
         option1 = o1;
         option2 = o2;
@@ -19,36 +40,42 @@ public:
         correctOption = correct;
     }
 
-    void askQuestion(int &score) {
-        int ans;
+    // Display question
+    void display() const {
 
         cout << "\n" << question << endl;
         cout << "1. " << option1 << endl;
         cout << "2. " << option2 << endl;
         cout << "3. " << option3 << endl;
         cout << "4. " << option4 << endl;
+    }
+
+    // Ask question and return whether answer is correct
+    bool askQuestion() const {
+
+        int answer;
+
+        display();
 
         cout << "Enter your answer (1-4): ";
-        cin >> ans;
+        cin >> answer;
 
-        if (ans == correctOption) {
+        if (answer == correctOption) {
             cout << "Correct!\n";
-            score++;
-        } else {
-            cout << "Wrong! Correct answer was option "
+            return true;
+        }
+        else {
+            cout << "Wrong!\n";
+            cout << "Correct answer was option "
                  << correctOption << ".\n";
+
+            return false;
         }
     }
 
-    void display() {
-        cout << "\n" << question << endl;
-        cout << "1. " << option1 << endl;
-        cout << "2. " << option2 << endl;
-        cout << "3. " << option3 << endl;
-        cout << "4. " << option4 << endl;
-    }
-
+    // Edit question
     void editQuestion() {
+
         cin.ignore();
 
         cout << "\nEnter new question: ";
@@ -66,438 +93,1099 @@ public:
         cout << "Option 4: ";
         getline(cin, option4);
 
-        cout << "Enter correct option number (1-4): ";
-        cin >> correctOption;
+        do {
+            cout << "Enter correct option number (1-4): ";
+            cin >> correctOption;
+
+            if (correctOption < 1 || correctOption > 4) {
+                cout << "Invalid option. Try again.\n";
+            }
+
+        } while (correctOption < 1 || correctOption > 4);
 
         cout << "Question updated successfully!\n";
+    }
+
+    // Save question to file
+    void saveToFile(ofstream &file) const {
+
+        file << question << '\n';
+        file << option1 << '\n';
+        file << option2 << '\n';
+        file << option3 << '\n';
+        file << option4 << '\n';
+        file << correctOption << '\n';
+    }
+
+    // Load question from file
+    bool loadFromFile(ifstream &file) {
+
+        string correct;
+
+        if (!getline(file, question)) {
+            return false;
+        }
+
+        if (!getline(file, option1)) return false;
+        if (!getline(file, option2)) return false;
+        if (!getline(file, option3)) return false;
+        if (!getline(file, option4)) return false;
+        if (!getline(file, correct)) return false;
+
+        try {
+            correctOption = stoi(correct);
+        }
+        catch (...) {
+            return false;
+        }
+
+        return true;
     }
 };
 
 
-class Student {
+// ============================================================
+// QUESTION BANK CLASS
+// ============================================================
+
+class QuestionBank {
 private:
-    string name;
 
-    int mathsScore, scienceScore;
-    int socialScore, englishScore;
-
-    bool attemptedMaths, attemptedScience;
-    bool attemptedSocial, attemptedEnglish;
+    vector<Question> questions;
 
 public:
+
+    // Add question
+    void addQuestion(const Question &q) {
+        questions.push_back(q);
+    }
+
+    // Number of questions
+    int size() const {
+        return questions.size();
+    }
+
+    // Access question
+    Question &operator[](int index) {
+        return questions[index];
+    }
+
+    // Display all questions
+    void displayQuestions() const {
+
+        if (questions.empty()) {
+            cout << "\nNo questions available.\n";
+            return;
+        }
+
+        for (int i = 0; i < questions.size(); i++) {
+
+            cout << "\nQuestion " << i + 1 << ":";
+            questions[i].display();
+        }
+    }
+
+    // Save all questions
+    void saveToFile(const string &filename) const {
+
+        ofstream file(filename);
+
+        if (!file) {
+            cout << "Error opening file: "
+                 << filename << endl;
+            return;
+        }
+
+        for (const Question &q : questions) {
+            q.saveToFile(file);
+        }
+
+        file.close();
+    }
+
+    // Load all questions
+    void loadFromFile(const string &filename) {
+
+        questions.clear();
+
+        ifstream file(filename);
+
+        // If file doesn't exist, simply start with empty bank
+        if (!file) {
+            return;
+        }
+
+        while (true) {
+
+            Question q;
+
+            if (!q.loadFromFile(file)) {
+                break;
+            }
+
+            questions.push_back(q);
+        }
+
+        file.close();
+    }
+
+    // Get randomized questions
+    vector<Question> getRandomQuestions(int count) const {
+
+        vector<Question> selected = questions;
+
+        // Random number generator
+        random_device rd;
+        mt19937 generator(rd());
+
+        shuffle(
+            selected.begin(),
+            selected.end(),
+            generator
+        );
+
+        if (count < selected.size()) {
+            selected.resize(count);
+        }
+
+        return selected;
+    }
+};
+
+
+// ============================================================
+// STUDENT CLASS
+// ============================================================
+
+class Student {
+private:
+
+    string name;
+
+    int mathsScore;
+    int scienceScore;
+    int socialScore;
+    int englishScore;
+
+    bool attemptedMaths;
+    bool attemptedScience;
+    bool attemptedSocial;
+    bool attemptedEnglish;
+
+public:
+
     Student(string n = "Unknown") {
+
         name = n;
 
-        mathsScore = scienceScore =
-        socialScore = englishScore = 0;
+        mathsScore = 0;
+        scienceScore = 0;
+        socialScore = 0;
+        englishScore = 0;
 
-        attemptedMaths =
-        attemptedScience =
-        attemptedSocial =
+        attemptedMaths = false;
+        attemptedScience = false;
+        attemptedSocial = false;
         attemptedEnglish = false;
     }
 
-    void attemptQuiz(Question q[], int total, string subject) {
-        int score = 0;
+    // Take quiz
+    int attemptQuiz(
+        const QuestionBank &bank,
+        string subject
+    ) {
 
-        for (int i = 0; i < total; i++) {
-            q[i].askQuestion(score);
+        if (bank.size() == 0) {
+
+            cout << "\nNo questions available for "
+                 << subject << ".\n";
+
+            return 0;
         }
 
-        cout << "\n" << name
-             << ", your score in " << subject
-             << ": " << score
-             << " out of " << total << endl;
+        // Number of questions
+        int numberOfQuestions;
 
+        cout << "\nAvailable questions: "
+             << bank.size() << endl;
+
+        cout << "How many questions do you want to attempt? ";
+
+        cin >> numberOfQuestions;
+
+        if (numberOfQuestions < 1) {
+            cout << "Invalid number of questions.\n";
+            return 0;
+        }
+
+        if (numberOfQuestions > bank.size()) {
+            numberOfQuestions = bank.size();
+
+            cout << "Only " << bank.size()
+                 << " questions are available.\n";
+        }
+
+        // Random question selection
+        vector<Question> quizQuestions =
+            bank.getRandomQuestions(numberOfQuestions);
+
+        int score = 0;
+
+        cout << "\n====================================\n";
+        cout << "          " << subject << " EXAM\n";
+        cout << "====================================\n";
+
+        for (int i = 0; i < quizQuestions.size(); i++) {
+
+            cout << "\nQuestion "
+                 << i + 1
+                 << " of "
+                 << quizQuestions.size()
+                 << endl;
+
+            if (quizQuestions[i].askQuestion()) {
+                score++;
+            }
+        }
+
+        cout << "\n====================================\n";
+        cout << "              RESULT\n";
+        cout << "====================================\n";
+
+        cout << "Student : " << name << endl;
+        cout << "Subject : " << subject << endl;
+        cout << "Score   : " << score
+             << " / "
+             << quizQuestions.size()
+             << endl;
+
+        double percentage =
+            (double)score /
+            quizQuestions.size() * 100;
+
+        cout << "Percentage : "
+             << percentage
+             << "%\n";
+
+        // Store subject score
         if (subject == "Maths") {
+
             mathsScore = score;
             attemptedMaths = true;
         }
         else if (subject == "Science") {
+
             scienceScore = score;
             attemptedScience = true;
         }
         else if (subject == "Social") {
+
             socialScore = score;
             attemptedSocial = true;
         }
         else if (subject == "English") {
+
             englishScore = score;
             attemptedEnglish = true;
         }
+
+        // Save result to file
+        saveResult(
+            subject,
+            score,
+            quizQuestions.size(),
+            percentage
+        );
+
+        return score;
     }
 
-    void showAllScores() {
-        cout << "\n===== " << name
-             << "'s Subject Scores =====\n";
+    // Show all scores
+    void showAllScores() const {
 
-        cout << "Maths: "
-             << (attemptedMaths ?
-                 to_string(mathsScore) :
-                 "Not Attempted") << endl;
+        cout << "\n====================================\n";
+        cout << "       " << name
+             << "'s SUBJECT SCORES\n";
+        cout << "====================================\n";
 
-        cout << "Science: "
-             << (attemptedScience ?
-                 to_string(scienceScore) :
-                 "Not Attempted") << endl;
+        cout << "Maths: ";
 
-        cout << "Social: "
-             << (attemptedSocial ?
-                 to_string(socialScore) :
-                 "Not Attempted") << endl;
+        if (attemptedMaths)
+            cout << mathsScore;
+        else
+            cout << "Not Attempted";
 
-        cout << "English: "
-             << (attemptedEnglish ?
-                 to_string(englishScore) :
-                 "Not Attempted") << endl;
+        cout << endl;
+
+
+        cout << "Science: ";
+
+        if (attemptedScience)
+            cout << scienceScore;
+        else
+            cout << "Not Attempted";
+
+        cout << endl;
+
+
+        cout << "Social: ";
+
+        if (attemptedSocial)
+            cout << socialScore;
+        else
+            cout << "Not Attempted";
+
+        cout << endl;
+
+
+        cout << "English: ";
+
+        if (attemptedEnglish)
+            cout << englishScore;
+        else
+            cout << "Not Attempted";
+
+        cout << endl;
+    }
+
+    // Save result
+    void saveResult(
+        string subject,
+        int score,
+        int total,
+        double percentage
+    ) const {
+
+        ofstream file("results.txt", ios::app);
+
+        if (!file) {
+
+            cout << "Unable to save result.\n";
+            return;
+        }
+
+        time_t now = time(0);
+
+        file << "====================================\n";
+        file << "Student: " << name << '\n';
+        file << "Subject: " << subject << '\n';
+        file << "Score: "
+             << score
+             << "/"
+             << total
+             << '\n';
+
+        file << "Percentage: "
+             << percentage
+             << "%\n";
+
+        file << "Date: "
+             << ctime(&now);
+
+        file << "====================================\n\n";
+
+        file.close();
     }
 };
 
 
+// ============================================================
+// ADMIN / TEACHER CLASS
+// ============================================================
+
+class Admin {
+private:
+
+    string password;
+
+public:
+
+    Admin() {
+        password = "teacher123";
+    }
+
+    // Login
+    bool login() {
+
+        string enteredPassword;
+
+        cout << "\nEnter Teacher Password: ";
+        cin >> enteredPassword;
+
+        if (enteredPassword == password) {
+
+            cout << "Teacher login successful!\n";
+            return true;
+        }
+
+        cout << "Wrong password! Access denied.\n";
+
+        return false;
+    }
+
+    // Add question
+    void addQuestion(
+        QuestionBank &maths,
+        QuestionBank &science,
+        QuestionBank &social,
+        QuestionBank &english
+    ) {
+
+        int subject;
+
+        cout << "\n====================================\n";
+        cout << "       SELECT SUBJECT\n";
+        cout << "====================================\n";
+
+        cout << "1. Maths\n";
+        cout << "2. Science\n";
+        cout << "3. Social\n";
+        cout << "4. English\n";
+
+        cout << "Enter choice: ";
+        cin >> subject;
+
+        cin.ignore();
+
+        string q;
+        string o1, o2, o3, o4;
+
+        int correct;
+
+        cout << "\nEnter Question: ";
+        getline(cin, q);
+
+        cout << "Option 1: ";
+        getline(cin, o1);
+
+        cout << "Option 2: ";
+        getline(cin, o2);
+
+        cout << "Option 3: ";
+        getline(cin, o3);
+
+        cout << "Option 4: ";
+        getline(cin, o4);
+
+        do {
+
+            cout << "Enter correct option (1-4): ";
+            cin >> correct;
+
+            if (correct < 1 || correct > 4) {
+                cout << "Invalid option. Try again.\n";
+            }
+
+        } while (correct < 1 || correct > 4);
+
+
+        Question newQuestion;
+
+        newQuestion.setData(
+            q,
+            o1,
+            o2,
+            o3,
+            o4,
+            correct
+        );
+
+
+        switch (subject) {
+
+            case 1:
+                maths.addQuestion(newQuestion);
+                maths.saveToFile("maths.txt");
+                break;
+
+            case 2:
+                science.addQuestion(newQuestion);
+                science.saveToFile("science.txt");
+                break;
+
+            case 3:
+                social.addQuestion(newQuestion);
+                social.saveToFile("social.txt");
+                break;
+
+            case 4:
+                english.addQuestion(newQuestion);
+                english.saveToFile("english.txt");
+                break;
+
+            default:
+                cout << "Invalid subject!\n";
+                return;
+        }
+
+        cout << "\nQuestion added successfully!\n";
+        cout << "Question saved permanently.\n";
+    }
+
+
+    // Edit question
+    void editQuestion(
+        QuestionBank &maths,
+        QuestionBank &science,
+        QuestionBank &social,
+        QuestionBank &english
+    ) {
+
+        int subject;
+
+        cout << "\n====================================\n";
+        cout << "       SELECT SUBJECT\n";
+        cout << "====================================\n";
+
+        cout << "1. Maths\n";
+        cout << "2. Science\n";
+        cout << "3. Social\n";
+        cout << "4. English\n";
+
+        cout << "Enter choice: ";
+        cin >> subject;
+
+
+        QuestionBank *selectedBank = nullptr;
+        string filename;
+
+
+        switch (subject) {
+
+            case 1:
+                selectedBank = &maths;
+                filename = "maths.txt";
+                break;
+
+            case 2:
+                selectedBank = &science;
+                filename = "science.txt";
+                break;
+
+            case 3:
+                selectedBank = &social;
+                filename = "social.txt";
+                break;
+
+            case 4:
+                selectedBank = &english;
+                filename = "english.txt";
+                break;
+
+            default:
+                cout << "Invalid subject!\n";
+                return;
+        }
+
+
+        if (selectedBank->size() == 0) {
+
+            cout << "No questions available.\n";
+            return;
+        }
+
+
+        selectedBank->displayQuestions();
+
+
+        int questionNumber;
+
+        cout << "\nEnter question number to edit: ";
+        cin >> questionNumber;
+
+
+        if (
+            questionNumber < 1 ||
+            questionNumber > selectedBank->size()
+        ) {
+
+            cout << "Invalid question number!\n";
+            return;
+        }
+
+
+        (*selectedBank)[questionNumber - 1]
+            .editQuestion();
+
+
+        selectedBank->saveToFile(filename);
+
+        cout << "Changes saved successfully!\n";
+    }
+
+
+    // View questions
+    void viewQuestions(
+        const QuestionBank &maths,
+        const QuestionBank &science,
+        const QuestionBank &social,
+        const QuestionBank &english
+    ) {
+
+        int subject;
+
+        cout << "\nSelect Subject:\n";
+
+        cout << "1. Maths\n";
+        cout << "2. Science\n";
+        cout << "3. Social\n";
+        cout << "4. English\n";
+
+        cout << "Enter choice: ";
+        cin >> subject;
+
+
+        switch (subject) {
+
+            case 1:
+                maths.displayQuestions();
+                break;
+
+            case 2:
+                science.displayQuestions();
+                break;
+
+            case 3:
+                social.displayQuestions();
+                break;
+
+            case 4:
+                english.displayQuestions();
+                break;
+
+            default:
+                cout << "Invalid subject!\n";
+        }
+    }
+};
+
+
+// ============================================================
+// LOAD DEFAULT QUESTIONS
+// ============================================================
+
+void createDefaultQuestions(
+    QuestionBank &maths,
+    QuestionBank &science,
+    QuestionBank &social,
+    QuestionBank &english
+) {
+
+    // ---------------- MATHS ----------------
+
+    if (maths.size() == 0) {
+
+        Question q1;
+
+        q1.setData(
+            "What is 10 + 5?",
+            "12",
+            "15",
+            "20",
+            "25",
+            2
+        );
+
+        maths.addQuestion(q1);
+
+
+        Question q2;
+
+        q2.setData(
+            "What is 9 * 3?",
+            "18",
+            "21",
+            "27",
+            "30",
+            3
+        );
+
+        maths.addQuestion(q2);
+
+
+        maths.saveToFile("maths.txt");
+    }
+
+
+    // ---------------- SCIENCE ----------------
+
+    if (science.size() == 0) {
+
+        Question q1;
+
+        q1.setData(
+            "Which gas do humans breathe in?",
+            "Oxygen",
+            "Carbon Dioxide",
+            "Nitrogen",
+            "Hydrogen",
+            1
+        );
+
+        science.addQuestion(q1);
+
+
+        Question q2;
+
+        q2.setData(
+            "Water freezes at what temperature?",
+            "0C",
+            "10C",
+            "50C",
+            "100C",
+            1
+        );
+
+        science.addQuestion(q2);
+
+
+        science.saveToFile("science.txt");
+    }
+
+
+    // ---------------- SOCIAL ----------------
+
+    if (social.size() == 0) {
+
+        Question q1;
+
+        q1.setData(
+            "Who is the Father of the Nation (India)?",
+            "Nehru",
+            "Gandhi",
+            "Patel",
+            "Ambedkar",
+            2
+        );
+
+        social.addQuestion(q1);
+
+
+        Question q2;
+
+        q2.setData(
+            "Which is the capital of India?",
+            "Mumbai",
+            "Delhi",
+            "Kolkata",
+            "Chennai",
+            2
+        );
+
+        social.addQuestion(q2);
+
+
+        social.saveToFile("social.txt");
+    }
+
+
+    // ---------------- ENGLISH ----------------
+
+    if (english.size() == 0) {
+
+        Question q1;
+
+        q1.setData(
+            "Choose the correct spelling:",
+            "Enviroment",
+            "Environment",
+            "Environmment",
+            "Enviourment",
+            2
+        );
+
+        english.addQuestion(q1);
+
+
+        Question q2;
+
+        q2.setData(
+            "Opposite of 'Happy'?",
+            "Joyful",
+            "Excited",
+            "Sad",
+            "Calm",
+            3
+        );
+
+        english.addQuestion(q2);
+
+
+        english.saveToFile("english.txt");
+    }
+}
+
+
+// ============================================================
+// MAIN FUNCTION
+// ============================================================
+
 int main() {
 
-    Question maths[10];
-    int mathsCount = 2;
-
-    maths[0].setData(
-        "What is 10 + 5?",
-        "12", "15", "20", "25", 2
-    );
-
-    maths[1].setData(
-        "What is 9 * 3?",
-        "18", "21", "27", "30", 3
-    );
+    // Create question banks
+    QuestionBank maths;
+    QuestionBank science;
+    QuestionBank social;
+    QuestionBank english;
 
 
-    Question science[10];
-    int scienceCount = 2;
+    // Load questions from files
+    maths.loadFromFile("maths.txt");
+    science.loadFromFile("science.txt");
+    social.loadFromFile("social.txt");
+    english.loadFromFile("english.txt");
 
-    science[0].setData(
-        "Which gas do humans breathe in?",
-        "Oxygen", "Carbon Dioxide",
-        "Nitrogen", "Hydrogen", 1
-    );
 
-    science[1].setData(
-        "Water freezes at what temperature?",
-        "0C", "10C", "50C", "100C", 1
+    // If files are empty, create default questions
+    createDefaultQuestions(
+        maths,
+        science,
+        social,
+        english
     );
 
 
-    Question social[10];
-    int socialCount = 2;
-
-    social[0].setData(
-        "Who is the Father of the Nation (India)?",
-        "Nehru", "Gandhi", "Patel", "Ambedkar", 2
-    );
-
-    social[1].setData(
-        "Which is the capital of India?",
-        "Mumbai", "Delhi", "Kolkata", "Chennai", 2
-    );
+    // Create admin
+    Admin admin;
 
 
-    Question english[10];
-    int englishCount = 2;
+    cout << "\n============================================\n";
+    cout << "       ONLINE EXAMINATION SYSTEM\n";
+    cout << "============================================\n";
 
-    english[0].setData(
-        "Choose the correct spelling:",
-        "Enviroment", "Environment",
-        "Environmment", "Enviourment", 2
-    );
-
-    english[1].setData(
-        "Opposite of 'Happy'?",
-        "Joyful", "Excited", "Sad", "Calm", 3
-    );
-
-
-    cout << "===== ONLINE EXAMINATION SYSTEM =====\n";
 
     int roleChoice;
+
     bool exitSystem = false;
+
 
     do {
 
-        cout << "\nSelect Role:\n";
+        cout << "\n====================================\n";
+        cout << "             MAIN MENU\n";
+        cout << "====================================\n";
+
         cout << "1. Teacher\n";
         cout << "2. Student\n";
         cout << "3. Exit\n";
+
         cout << "Enter your choice: ";
         cin >> roleChoice;
 
 
+        // ====================================================
         // TEACHER
+        // ====================================================
+
         if (roleChoice == 1) {
 
-            string pass;
+            if (!admin.login()) {
+                continue;
+            }
 
-            cout << "Enter Teacher Password: ";
-            cin >> pass;
 
-            if (pass != "teacher123") {
+            int teacherChoice;
+
+
+            do {
+
+                cout << "\n====================================\n";
+                cout << "          TEACHER MENU\n";
+                cout << "====================================\n";
+
+                cout << "1. Add New Question\n";
+                cout << "2. Edit Existing Question\n";
+                cout << "3. View Questions\n";
+                cout << "4. Back to Main Menu\n";
+
+                cout << "Enter choice: ";
+                cin >> teacherChoice;
+
+
+                if (teacherChoice == 1) {
+
+                    admin.addQuestion(
+                        maths,
+                        science,
+                        social,
+                        english
+                    );
+                }
+
+
+                else if (teacherChoice == 2) {
+
+                    admin.editQuestion(
+                        maths,
+                        science,
+                        social,
+                        english
+                    );
+                }
+
+
+                else if (teacherChoice == 3) {
+
+                    admin.viewQuestions(
+                        maths,
+                        science,
+                        social,
+                        english
+                    );
+                }
+
+
+                else if (teacherChoice == 4) {
+
+                    cout << "Returning to main menu...\n";
+                }
+
+
+                else {
+
+                    cout << "Invalid choice!\n";
+                }
+
+
+            } while (teacherChoice != 4);
+        }
+
+
+        // ====================================================
+        // STUDENT
+        // ====================================================
+
+        else if (roleChoice == 2) {
+
+            string studentPassword;
+
+            cout << "\nEnter Student Password: ";
+            cin >> studentPassword;
+
+
+            if (studentPassword != "student123") {
+
                 cout << "Wrong password! Access denied.\n";
                 continue;
             }
 
-            int tChoice;
-
-            do {
-
-                cout << "\n===== TEACHER MENU =====\n";
-                cout << "1. Add New Question\n";
-                cout << "2. Edit Existing Question\n";
-                cout << "3. Back to Main Menu\n";
-                cout << "Enter your choice: ";
-                cin >> tChoice;
-
-
-                // ADD QUESTION
-                if (tChoice == 1) {
-
-                    int sub;
-
-                    cout << "\nSelect Subject to Add Question:\n";
-                    cout << "1. Maths\n";
-                    cout << "2. Science\n";
-                    cout << "3. Social\n";
-                    cout << "4. English\n";
-                    cout << "Enter: ";
-                    cin >> sub;
-
-                    cin.ignore();
-
-                    string q, o1, o2, o3, o4;
-                    int ans;
-
-                    cout << "\nEnter Question: ";
-                    getline(cin, q);
-
-                    cout << "Option 1: ";
-                    getline(cin, o1);
-
-                    cout << "Option 2: ";
-                    getline(cin, o2);
-
-                    cout << "Option 3: ";
-                    getline(cin, o3);
-
-                    cout << "Option 4: ";
-                    getline(cin, o4);
-
-                    cout << "Enter correct option number (1-4): ";
-                    cin >> ans;
-
-
-                    switch (sub) {
-
-                        case 1:
-                            maths[mathsCount++]
-                                .setData(q, o1, o2, o3, o4, ans);
-                            break;
-
-                        case 2:
-                            science[scienceCount++]
-                                .setData(q, o1, o2, o3, o4, ans);
-                            break;
-
-                        case 3:
-                            social[socialCount++]
-                                .setData(q, o1, o2, o3, o4, ans);
-                            break;
-
-                        case 4:
-                            english[englishCount++]
-                                .setData(q, o1, o2, o3, o4, ans);
-                            break;
-
-                        default:
-                            cout << "Invalid subject!\n";
-                    }
-
-                    cout << "Question added successfully!\n";
-                }
-
-
-                // EDIT QUESTION
-                else if (tChoice == 2) {
-
-                    int sub;
-
-                    cout << "\nSelect Subject to Edit:\n";
-                    cout << "1. Maths\n";
-                    cout << "2. Science\n";
-                    cout << "3. Social\n";
-                    cout << "4. English\n";
-                    cout << "Enter: ";
-                    cin >> sub;
-
-                    Question *selected = nullptr;
-                    int total = 0;
-
-
-                    switch (sub) {
-
-                        case 1:
-                            selected = maths;
-                            total = mathsCount;
-                            break;
-
-                        case 2:
-                            selected = science;
-                            total = scienceCount;
-                            break;
-
-                        case 3:
-                            selected = social;
-                            total = socialCount;
-                            break;
-
-                        case 4:
-                            selected = english;
-                            total = englishCount;
-                            break;
-
-                        default:
-                            cout << "Invalid subject!\n";
-                            continue;
-                    }
-
-
-                    for (int i = 0; i < total; i++) {
-
-                        cout << "\n" << i + 1 << ". ";
-                        selected[i].display();
-                    }
-
-
-                    int qNo;
-
-                    cout << "\nEnter question number to edit: ";
-                    cin >> qNo;
-
-
-                    if (qNo >= 1 && qNo <= total) {
-
-                        selected[qNo - 1].editQuestion();
-
-                    } else {
-
-                        cout << "Invalid question number!\n";
-                    }
-                }
-
-            } while (tChoice != 3);
-        }
-
-
-        // STUDENT
-        else if (roleChoice == 2) {
-
-            string spass;
-
-            cout << "Enter Student Password: ";
-            cin >> spass;
-
-            if (spass != "student123") {
-                cout << "Wrong Password! Access denied.\n";
-                continue;
-            }
 
             cin.ignore();
+
 
             string studentName;
 
             cout << "Enter your name: ";
             getline(cin, studentName);
 
-            Student s(studentName);
 
-            int choice;
+            Student student(studentName);
+
+
+            int studentChoice;
 
 
             do {
 
-                cout << "\n===== STUDENT MENU =====\n";
+                cout << "\n====================================\n";
+                cout << "          STUDENT MENU\n";
+                cout << "====================================\n";
+
                 cout << "1. Take Quiz\n";
                 cout << "2. Show All Scores\n";
                 cout << "3. Back to Main Menu\n";
-                cout << "Enter your choice: ";
-                cin >> choice;
+
+                cout << "Enter choice: ";
+                cin >> studentChoice;
 
 
-                // TAKE QUIZ
-                if (choice == 1) {
+                if (studentChoice == 1) {
 
                     int subjectChoice;
 
-                    cout << "\nChoose Subject:\n";
+
+                    cout << "\n====================================\n";
+                    cout << "          SELECT SUBJECT\n";
+                    cout << "====================================\n";
+
                     cout << "1. Maths\n";
                     cout << "2. Science\n";
                     cout << "3. Social\n";
                     cout << "4. English\n";
-                    cout << "Enter your choice: ";
+
+                    cout << "Enter choice: ";
                     cin >> subjectChoice;
 
 
                     switch (subjectChoice) {
 
                         case 1:
-                            s.attemptQuiz(
+                            student.attemptQuiz(
                                 maths,
-                                mathsCount,
                                 "Maths"
                             );
                             break;
 
                         case 2:
-                            s.attemptQuiz(
+                            student.attemptQuiz(
                                 science,
-                                scienceCount,
                                 "Science"
                             );
                             break;
 
                         case 3:
-                            s.attemptQuiz(
+                            student.attemptQuiz(
                                 social,
-                                socialCount,
                                 "Social"
                             );
                             break;
 
                         case 4:
-                            s.attemptQuiz(
+                            student.attemptQuiz(
                                 english,
-                                englishCount,
                                 "English"
                             );
                             break;
 
                         default:
-                            cout << "Invalid choice!\n";
+                            cout << "Invalid subject!\n";
                     }
                 }
 
 
-                // SHOW SCORES
-                else if (choice == 2) {
+                else if (studentChoice == 2) {
 
-                    s.showAllScores();
+                    student.showAllScores();
                 }
 
-            } while (choice != 3);
 
-            s.showAllScores();
+                else if (studentChoice == 3) {
+
+                    cout << "Returning to main menu...\n";
+                }
+
+
+                else {
+
+                    cout << "Invalid choice!\n";
+                }
+
+
+            } while (studentChoice != 3);
+
+
+            student.showAllScores();
         }
 
 
+        // ====================================================
         // EXIT
+        // ====================================================
+
         else if (roleChoice == 3) {
 
             cout << "\nExiting system...\n";
+
             exitSystem = true;
         }
 
@@ -507,10 +1195,14 @@ int main() {
             cout << "Invalid choice! Try again.\n";
         }
 
+
     } while (!exitSystem);
 
 
-    cout << "\n===== THANK YOU =====\n";
+    cout << "\n====================================\n";
+    cout << "          THANK YOU!\n";
+    cout << "====================================\n";
+
 
     return 0;
 }
